@@ -1,0 +1,23 @@
+%REM
+	Library Regex
+	Created Jan 23, 2015 by Bernd Berger
+	Description: Simple Regex Function, use it when the "like" operator is not sufficient.
+	Based on http://www.bleedyellow.com/blogs/texasswede/entry/regular_expressions_in_notes_lotusscript
+%END REM
+Option Public
+Option Declare
+
+Function MatchRegex(match_str As String, regex_str As string) As Boolean
+	Dim regex As Variant
+	
+	Set regex = CreateObject("VBScript.Regexp")
+	
+	regex.Global = True
+	regex.IgnoreCase = False
+	
+	'*** Define pattern and get text value to check for match
+	regex.Pattern = "\b(" & regex_str & ")\b" 'Example: "\b([A-Z0-9 ]{1}[0-9]{2}\/[0-9]{6})\b"
+	
+	'*** Test for match of pattern in text
+	MatchRegex = regex.Test(match_str)
+End Function
