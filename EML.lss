@@ -1,0 +1,95 @@
+%REM
+	Library EML
+
+	Created May 5, 2015 by Bernd Berger
+
+	Credits:
+	EML Stuff: http://ypastov.blogspot.de/2013/01/export-of-lotus-notes-email-to-eml-file.html
+	DoTrim: http://lomadi.blogspot.de/2010/01/lotusscript-fulltrim-function-does-not.html
+	StripAccent: http://www.xceed.be/Blog.nsf/dx/converting-accented-characters
+	NotesGroupManager: http://www.openntf.org/main.nsf/project.xsp?r=project/LotusScript%20Gold%20Collection
+%END REM
+Option Public
+Option Declare
+
+Use "NotesGroupManager"
+
+Private Function StripAccent(thestring As String) As String
+	On Error GoTo ErrHandler
+
+	Dim A As String * 1
+	Dim B As String * 1
+	Dim i As Integer
+
+	Const AccChars= "ČčŠŽšžŸÀÁÂÃÅÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÙÚÛÝàáâãåçèéêëìíîïðñòóôõùúûýÿ"
+	Const RegChars= "CcSZszYAAAAACEEEEIIIIDNOOOOUUUYaaaaaceeeeiiiidnoooouuuyy"
+
+	For i = 1 To Len(AccChars)
+		A = Mid(AccChars, i, 1)
+		B = Mid(RegChars, i, 1)
+		thestring = Replace(thestring, A, B)
+	Next
+
+	StripAccent = thestring
+
+ErrResume:
+	Exit Function
+ErrHandler:
+	Print GetThreadInfo(10) & "/" & GetThreadInfo(1) & ": " & Err & " - " & Error & " in line " & Erl
+	Resume ErrResume
+End Function
+
+Function createEML(mail As NotesDocument, emlpath As String, emlfilename As String) As Boolean
+	'TBD...
+End Function
+
+Function DoTrim(txt As String) As String
+	On Error GoTo ErrHandler
+
+	Dim strReturn As String
+	Dim cntr As Integer
+	Dim t As String
+
+	txt = FullTrim(txt)
+	strReturn = ""
+
+	For cntr = 1 To Len(txt)
+		t = Mid$(txt, cntr, 1)
+
+		If (Asc(t) <> 13) And (Asc(t) <> 10) Then '13=>CR, 10=>LF
+			strReturn = strReturn + t
+		End If
+	Next
+
+	Dotrim = strReturn
+
+ErrResume:
+	Exit Function
+ErrHandler:
+	Print GetThreadInfo(10) & "/" & GetThreadInfo(1) & ": " & Err & " - " & Error & " in line " & Erl
+	Resume ErrResume
+End Function
+
+Function ValidateFilename(filename As String) As String
+	On Error GoTo ErrHandler
+
+	Dim x As Integer
+	Dim i As Integer
+	Dim newname As String
+
+	filename = StripAccent(filename)
+
+	For x = 1 To Len(filename)
+		If Mid$(filename,x,1) Like "[-A-Za-z0-9²³().&%$§€µ@ +_#'~]" Then
+			newname = newname + Mid$(filename,x,1)
+		End If
+	Next x
+
+	ValidateFilename = DoTrim(newname)
+
+ErrResume:
+	Exit Function
+ErrHandler:
+	Print GetThreadInfo(10) & "/" & GetThreadInfo(1) & ": " & Err & " - " & Error & " in line " & Erl
+	Resume ErrResume
+End Function
