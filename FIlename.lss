@@ -1,0 +1,85 @@
+%REM
+	Library Filename
+	Created May 5, 2015 by Bernd Berger
+	Description: get a nice filename when exporting mails...
+%END REM
+Option Public
+Option Declare
+
+Function Filename(doc As NotesDocument, path As String) As String
+	Dim length As Integer
+	Dim Datum As NotesDateTime
+	Dim strJahr As String
+	Dim strMonat As String
+	Dim strTag As String
+	Dim strDatum As String
+	Dim strSender As String
+	
+	length = 240 - Len(path)
+	
+	'Den Datumsstring bilden
+	Set Datum = getTime(doc)
+	
+	'Jahr
+	If Year(Datum.Dateonly) < 1000 Then
+		strJahr = "0" & CStr(Year(Datum.Dateonly))
+	Else
+		strJahr = CStr(Year(Datum.Dateonly))
+	End If
+	
+	'Monat
+	If Month(Datum.Dateonly) < 10 Then
+		strMonat = "0" & CStr(Month(Datum.Dateonly))
+	Else
+		strMonat = CStr(Month(Datum.Dateonly))
+	End If
+	
+	'Tag
+	If Day(Datum.Dateonly) < 10 Then
+		strTag = "0" & CStr(Day(Datum.Dateonly))
+	Else
+		strTag = CStr(Day(Datum.Dateonly))
+	End If
+	
+	strDatum = strJahr & strMonat & strTag
+	
+	strSender = getSender(doc)
+	
+	If Not doc.Getitemvalue("Subject")(0) = "" Then
+		Filename = Left$(strDatum & " - " & strSender & " - " & doc.Getitemvalue("Subject")(0), length)
+	Else
+		Filename = Left$(strDatum & " - " & strSender & " - No Subject", length)
+	End If
+End Function
+
+Function getSender(mail As NotesDocument) As String
+	Dim s As New NotesSession
+	Dim n As New NotesName(mail.From(0))
+	Dim m As New NotesName(mail.SendTo(0))
+	Dim doc As NotesDocument
+	
+	Set doc = s.Currentdatabase.Getprofiledocument("CalendarProfile")
+	
+	If doc.Getitemvalue("Owner")(0) = n.Canonical Then
+		getSender = Left(m.Common & " (from " & n.Common & ")", 50)
+	Else
+		getSender = Left(n.Common, 25)
+	End If
+End Function
+
+Function getTime(mail As NotesDocument) As NotesDateTime
+	Dim item As NotesItem
+	
+	Set item = mail.GetFirstItem("DeliveredDate" )
+	
+	If (item Is Nothing) Then
+		Set item = mail.GetFirstItem("OriginalModTime")
+		If (item Is Nothing) Then
+			Set getTime = New NotesDateTime(mail.Created)
+		Else
+			Set getTime = item.DateTimeValue
+		End If
+	Else
+		Set getTime = item.DateTimeValue
+	End If
+End Function
