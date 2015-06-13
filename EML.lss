@@ -14,6 +14,46 @@ Option Declare
 
 Use "NotesGroupManager"
 
+Private Sub PrintMime(Mime As NotesMIMEEntity, Stream As NotesStream)
+	On Error GoTo ErrHandler
+
+	Dim child As NotesMIMEEntity
+
+	If Mime Is Nothing Then
+		Exit Sub
+	End If
+
+	If Mime.Encoding = ENC_IDENTITY_BINARY Or _
+	Mime.Encoding = ENC_IDENTITY_7BIT Or _
+	Mime.Encoding = ENC_IDENTITY_8BIT Then
+		Call Mime.DecodeContent
+		Call Mime.EncodeContent(ENC_BASE64)
+	End If
+
+	Call Mime.GetEntityAsText(Stream)
+
+	If Mime.ContentType = "multipart" Then
+		If Mime.Preamble <> "" Then
+			Call Stream.WriteText(Mime.Preamble, EOL_NONE)
+		End If
+
+		Set child = Mime.GetFirstChildEntity
+
+		While Not child Is Nothing
+			Call WriteAsciiBytes(Stream, child.BoundaryStart)
+			Call PrintMime(child, Stream)
+			Call WriteAsciiBytes(Stream, child.BoundaryEnd)
+			Set child = child.GetNextSibling
+		Wend
+	End If
+
+ErrResume:
+	Exit Sub
+ErrHandler:
+	Print GetThreadInfo(10) & "/" & GetThreadInfo(1) & ": " & Err & " - " & Error & " in line " & Erl
+	Resume ErrResume
+End Sub
+
 Private Function StripAccent(thestring As String) As String
 	On Error GoTo ErrHandler
 
@@ -39,9 +79,318 @@ ErrHandler:
 	Resume ErrResume
 End Function
 
-Function createEML(mail As NotesDocument, emlpath As String, emlfilename As String) As Boolean
-	'TBD...
+%REM
+	Function FixOutlookHeadersMonth
+	Description: Format(DATE, "mmm") would return "Dez" instead of "Dec" in German Notes Client -> Error on opening the EML
+%END REM
+Private Function FixOutlookHeadersMonth(mm As String) As String
+	Select Case mm
+		Case "01": FixOutlookHeadersMonth = "Jan"
+		Case "02": FixOutlookHeadersMonth = "Feb"
+		Case "03": FixOutlookHeadersMonth = "Mar"
+		Case "04": FixOutlookHeadersMonth = "Apr"
+		Case "05": FixOutlookHeadersMonth = "May"
+		Case "06": FixOutlookHeadersMonth = "Jun"
+		Case "07": FixOutlookHeadersMonth = "Jul"
+		Case "08": FixOutlookHeadersMonth = "Aug"
+		Case "09": FixOutlookHeadersMonth = "Sep"
+		Case "10": FixOutlookHeadersMonth = "Oct"
+		Case "11": FixOutlookHeadersMonth = "Nov"
+		Case "12": FixOutlookHeadersMonth = "Dec"
+	End Select
 End Function
+
+%REM
+	Sub OutlookHeadersFixing
+	Description: Comments for Sub
+%END REM
+Private Sub OutlookHeadersFixing(mail As NotesDocument)
+	On Error GoTo ErrHandler
+
+	Dim body As NotesMIMEEntity
+	Dim header As NotesMIMEHeader
+	Dim headerName As String
+	Dim headerValue As String
+	Dim DateTime As NotesDateTime
+
+	Set body = mail.GetMimeentity
+
+	'Date
+	headerName = "Date"
+	Set header = body.Getnthheader(headerName, 1)
+
+	If header Is Nothing Then Set header = body.Createheader(headerName)
+
+	'SendOn/ReceivedTime
+	If CStr(mail.getitemvalue("DeliveredDate")(0)) = "" Then
+		Set DateTime = New NotesDateTime(mail.Getitemvalue("PostedDate")(0))
+
+		Call header.SetHeaderVal(Format(mail.getitemvalue("PostedDate")(0), "dd") & " " & FixOutlookHeadersMonth(Format(mail.getitemvalue("PostedDate")(0), "mm")) & " " & Format(mail.getitemvalue("PostedDate")(0), "yyyy  hh:mm:ss") & " " & StrRightBack(DateTime.Zonetime, " "))
+
+		headerName = "SendOn"
+		Set header = body.Getnthheader(headerName, 1)
+
+		If header Is Nothing Then Set header = body.Createheader(headerName)
+
+		If mail.getitemvalue("PostedDate")(0) <> "" Then Call header.SetHeaderVal(Format(mail.getitemvalue("PostedDate")(0), "dd") & " " & FixOutlookHeadersMonth(Format(mail.getitemvalue("PostedDate")(0), "mm")) & " " & Format(mail.getitemvalue("PostedDate")(0), "yyyy  hh:mm:ss") & " " & StrRightBack(DateTime.Zonetime, " "))
+	Else
+		Set DateTime = New NotesDateTime(mail.Getitemvalue("DeliveredDate")(0))
+
+		Call header.SetHeaderVal(Format(mail.getitemvalue("DeliveredDate")(0), "dd") & " " & FixOutlookHeadersMonth(Format(mail.getitemvalue("DeliveredDate")(0), "mm")) & " " & Format(mail.getitemvalue("DeliveredDate")(0), "yyyy  hh:mm:ss") & " " & StrRightBack(DateTime.Zonetime, " "))
+
+		headerName = "ReceivedTime"
+		Set header = body.Getnthheader(headerName, 1)
+
+		If header Is Nothing Then Set header = body.Createheader(headerName)
+
+		If mail.getitemvalue("DeliveredDate")(0) <> "" Then Call header.SetHeaderVal(Format(mail.getitemvalue("DeliveredDate")(0), "dd") & " " & FixOutlookHeadersMonth(Format(mail.getitemvalue("DeliveredDate")(0), "mm")) & " " & Format(mail.getitemvalue("DeliveredDate")(0), "yyyy  hh:mm:ss") & " " & StrRightBack(DateTime.Zonetime, " "))
+	End If
+
+ErrResume:
+	Exit Sub
+ErrHandler:
+	Print GetThreadInfo(10) & "/" & GetThreadInfo(1) & ": " & Err & " - " & Error & " in line " & Erl
+	Resume ErrResume
+End Sub
+
+Function createEML(mail As NotesDocument, emlpath As String, emlfilename As String) As Integer
+	'Return Values:
+	'0 Success!
+
+	'Errors:
+	'1 Folder not found
+	'2 EML-File already exists
+	'3 EML-File was not created (permissions?)
+	'4 No valid document
+	'5 No body
+	'6 Truncated
+	'7 Errorhandler
+	'8 Empty values in the function call
+	'9 Only reader access
+	'10 Quota
+
+	On Error GoTo ErrHandler
+	On Error 76 Resume Next 'Folder not found -> Dir(emlpath, 16)
+
+	If mail Is Nothing Or emlpath = "" Or emlfilename = "" Then
+		createEML = 8
+		Exit Function
+	End If
+
+	Dim s As New NotesSession
+	Dim db As NotesDatabase
+	Dim Names As New NotesDatabase(s.GetEnvironmentString("MailServer", True), "Names.nsf")
+	Dim MailCpy As NotesDocument
+	Dim Stream As NotesStream
+	Dim Mime As NotesMIMEEntity
+	Dim ACL As NotesACL
+	Dim entry As NotesACLEntry
+	Dim n As New NotesName(s.Username)
+	Dim gman As New NotesGroupManager(True)
+	Dim Group As NotesGroup
+	Dim FilePath As String
+	Dim tmpForm As String
+	Dim DirResult As String
+	Dim bIsDocValid As Boolean
+	Dim bHasItemBody As Boolean
+	Dim bHasItemAttBytesTruncated As Boolean
+	Dim bHasItemDocBytesTruncated As Boolean
+	Dim bACL As Boolean
+	Dim bConvertToMime As Boolean
+	Dim bConvertMail As Boolean
+
+	Set db = s.currentdatabase
+	Set ACL = db.ACL
+	Set entry = ACL.GetEntry(s.Username)
+
+	If Not entry Is Nothing Then
+		If Not (entry.Cancreatedocuments And entry.Candeletedocuments) Then
+			createEML = 9
+			Exit Function
+		End If
+	Else
+		Set entry = ACL.Getfirstentry()
+
+		Call gman.LoadAddressBook(Names)
+
+		bACL = False
+
+		While Not entry Is Nothing
+			If entry.IsGroup Then
+				Set Group = gman.GetGroup(entry.Name)
+				If Not Group Is Nothing Then
+					If Group.isMember(n.Canonical) Then
+						If entry.Cancreatedocuments And entry.Candeletedocuments Then
+							bACL = True
+						End If
+					End If
+				End If
+			End If
+			Set entry = ACL.Getnextentry(entry)
+		Wend
+
+		If Not bACL Then
+			createEML = 9
+			Exit Function
+		End If
+	End If
+
+	If db.Sizequota <> 0 Then
+		If ((db.Size/1024) + (mail.Size/1024)) >= db.Sizequota Then
+			createEML = 10
+			Exit Function
+		End If
+	End If
+
+	bIsDocValid = mail.IsValid
+	bHasItemBody = mail.Hasitem("Body")
+	bHasItemAttBytesTruncated = mail.Hasitem("$AttBytesTruncated")
+	bHasItemDocBytesTruncated = mail.Hasitem("$DocBytesTruncated")
+
+	If bIsDocValid = True Then
+		createEML = 4
+		Exit Function
+	End If
+
+	If bHasItemBody = True Then
+		createEML = 5
+		Exit Function
+	End If
+
+	If bHasItemAttBytesTruncated = False And bHasItemDocBytesTruncated = False Then
+		createEML = 6
+		Exit Function
+	End If
+
+	DirResult = Dir(emlpath, 16)
+
+	If DirResult <> "" Then
+		FilePath = Replace(emlpath & "\" & ValidateFilename(emlfilename) & ".eml", "\\", "\", 2)
+
+		If Dir(FilePath) = "" Then
+			bConvertToMime = s.ConvertMime
+			s.ConvertMime = False
+
+			'Prepare Stream
+			Set Stream = s.CreateStream()
+			Call Stream.Open(FilePath, "utf-8")
+			Call Stream.Truncate()
+
+			'To keep original email without change I want to work with copy of email
+			Set MailCpy = db.Createdocument()
+			Call mail.Copyallitems(MailCpy, True)
+
+			'First thing: let's check if current email's Body is stored as MIME
+			'If not - then we need to convert Email's Body to MIME
+			bConvertMail = False
+			Set Mime = MailCpy.GetMIMEEntity
+			If Mime Is Nothing Then
+				bConvertMail = True
+			Else
+				If LCase(Mime.ContentType) = "multipart" Then bConvertMail = True
+			End If
+
+			If bConvertMail = True Then
+				tmpForm = MailCpy.GetItemValue("Form")(0)
+				Call MailCpy.ReplaceItemValue("Form", "MimeConvert")
+				Call MailCpy.ConvertToMIME(2)
+				Call MailCpy.ReplaceItemValue("Form", tmpForm)
+			End If
+
+			'Trim multiline Subjects to a single line
+			Call MailCpy.ReplaceItemValue("Subject", DoTrim(MailCpy.GetItemValue("Subject")(0)))
+
+			'the export does not create all items in eml-files which are required for Outlook
+			'So let's make some changes to MIME mail header to display it properly in Outlook
+			Call OutlookHeadersFixing(MailCpy)
+
+			'Export email to EML
+			Call GetMime(MailCpy, Stream)
+
+			'close Stream (free file)
+			Call Stream.Close()
+
+			s.ConvertMime = bConvertToMime
+
+			If Dir(FilePath) <> "" Then
+				createEML = 0
+			Else
+				createEML = 3
+			End If
+		Else
+			createEML = 2
+		End If
+	Else
+		createEML = 1
+	End If
+
+ErrResume:
+	Exit Function
+ErrHandler:
+	Print GetThreadInfo(10) & "/" & GetThreadInfo(1) & ": " & Err & " - " & Error & " in line " & Erl
+
+	If FilePath <> "" Then
+		If Dir(FilePath) <> "" Then
+			Kill FilePath
+		End If
+	End If
+
+	createEML = 7
+
+	Resume ErrResume
+End Function
+
+Private Sub WriteAsciiBytes (Stream As NotesStream, txt As String)
+	On Error GoTo ErrHandler
+
+	'** hackish workaround to write the boundary string to a UTF-8
+	'** NotesStream (convert it to an array of ASCII Bytes). It might be
+	'** something about the character set of the boundary string, but I
+	'** really don't know. All I DO know is that using WriteText to
+	'** write the string directly to a UTF-8 Stream doesn't work properly
+	'** for me, at least some of the time.
+	If Len(txt) = 0 Then
+		Exit Sub
+	End If
+
+	ReDim arr(Len(txt)-1) As Byte
+	Dim i As Integer
+
+	For i = 1 To Len(txt)
+		arr(i - 1) = CByte(Asc(Mid(txt, i, 1)))
+	Next
+
+	Call Stream.Write(arr)
+
+ErrResume:
+	Exit Sub
+ErrHandler:
+	Print GetThreadInfo(10) & "/" & GetThreadInfo(1) & ": " & Err & " - " & Error & " in line " & Erl
+	Resume ErrResume
+End Sub
+
+Private Sub GetMime(doc As NotesDocument, Stream As NotesStream)
+	On Error GoTo ErrHandler
+
+	Dim Mime As NotesMIMEEntity
+
+	Set Mime = doc.GetMIMEEntity
+
+	If Not (Mime Is Nothing) Then
+		While Not Mime Is Nothing
+			Call PrintMime(Mime, Stream)
+			Set Mime = Mime.Getnextsibling()
+		Wend
+	Else
+		Call Stream.WriteText("No MIME Found in " & doc.Subject(0), EOL_PLATFORM)
+	End If
+
+ErrResume:
+	Exit Sub
+ErrHandler:
+	Print GetThreadInfo(10) & "/" & GetThreadInfo(1) & ": " & Err & " - " & Error & " in line " & Erl
+	Resume ErrResume
+End Sub
 
 Function DoTrim(txt As String) As String
 	On Error GoTo ErrHandler
@@ -75,17 +424,17 @@ Function ValidateFilename(filename As String) As String
 
 	Dim x As Integer
 	Dim i As Integer
-	Dim newname As String
+	Dim NewName As String
 
 	filename = StripAccent(filename)
 
 	For x = 1 To Len(filename)
-		If Mid$(filename,x,1) Like "[-A-Za-z0-9²³().&%$§€µ@ +_#'~]" Then
-			newname = newname + Mid$(filename,x,1)
+		If Mid$(filename,x,1) Like "[-A-Za-z0-9²³().&%$§ +_#€µ@'~]" Then
+			NewName = NewName + Mid$(filename,x,1)
 		End If
 	Next x
 
-	ValidateFilename = DoTrim(newname)
+	ValidateFilename = DoTrim(NewName)
 
 ErrResume:
 	Exit Function
