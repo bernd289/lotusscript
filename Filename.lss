@@ -8,47 +8,47 @@ Option Declare
 
 Function Filename(doc As NotesDocument, path As String) As String
 	Dim length As Integer
-	Dim Datum As NotesDateTime
+	Dim NDate As NotesDateTime
 	Dim strJahr As String
-	Dim strMonat As String
-	Dim strTag As String
-	Dim strDatum As String
+	Dim strMonth As String
+	Dim strDay As String
+	Dim strNDate As String
 	Dim strSender As String
 	
 	length = 240 - Len(path)
 	
-	'Den Datumsstring bilden
-	Set Datum = getTime(doc)
+	'set date
+	Set NDate = getTime(doc)
 	
 	'Jahr
-	If Year(Datum.Dateonly) < 1000 Then
-		strJahr = "0" & CStr(Year(Datum.Dateonly))
+	If Year(NDate.Dateonly) < 1000 Then
+		strJahr = "0" & CStr(Year(NDate.Dateonly))
 	Else
-		strJahr = CStr(Year(Datum.Dateonly))
+		strJahr = CStr(Year(NDate.Dateonly))
 	End If
 	
 	'Monat
-	If Month(Datum.Dateonly) < 10 Then
-		strMonat = "0" & CStr(Month(Datum.Dateonly))
+	If Month(NDate.Dateonly) < 10 Then
+		strMonth = "0" & CStr(Month(NDate.Dateonly))
 	Else
-		strMonat = CStr(Month(Datum.Dateonly))
+		strMonth = CStr(Month(NDate.Dateonly))
 	End If
 	
 	'Tag
-	If Day(Datum.Dateonly) < 10 Then
-		strTag = "0" & CStr(Day(Datum.Dateonly))
+	If Day(NDate.Dateonly) < 10 Then
+		strDay = "0" & CStr(Day(NDate.Dateonly))
 	Else
-		strTag = CStr(Day(Datum.Dateonly))
+		strDay = CStr(Day(NDate.Dateonly))
 	End If
 	
-	strDatum = strJahr & strMonat & strTag
+	strNDate = strJahr & strMonth & strDay
 	
 	strSender = getSender(doc)
 	
 	If Not doc.Getitemvalue("Subject")(0) = "" Then
-		Filename = Left$(strDatum & " - " & strSender & " - " & doc.Getitemvalue("Subject")(0), length)
+		Filename = Left$(strNDate & " - " & strSender & " - " & doc.Getitemvalue("Subject")(0), length)
 	Else
-		Filename = Left$(strDatum & " - " & strSender & " - No Subject", length)
+		Filename = Left$(strNDate & " - " & strSender & " - No Subject", length)
 	End If
 End Function
 
