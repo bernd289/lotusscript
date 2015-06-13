@@ -247,17 +247,17 @@ Function createEML(mail As NotesDocument, emlpath As String, emlfilename As Stri
 	bHasItemAttBytesTruncated = mail.Hasitem("$AttBytesTruncated")
 	bHasItemDocBytesTruncated = mail.Hasitem("$DocBytesTruncated")
 
-	If bIsDocValid = True Then
+	If bIsDocValid = False Then
 		createEML = 4
 		Exit Function
 	End If
 
-	If bHasItemBody = True Then
+	If bHasItemBody = False Then
 		createEML = 5
 		Exit Function
 	End If
 
-	If bHasItemAttBytesTruncated = False And bHasItemDocBytesTruncated = False Then
+	If bHasItemAttBytesTruncated = True Or bHasItemDocBytesTruncated = True Then
 		createEML = 6
 		Exit Function
 	End If
