@@ -9,7 +9,7 @@ Option Declare
 Function Filename(doc As NotesDocument, path As String) As String
 	Dim length As Integer
 	Dim NDate As NotesDateTime
-	Dim strJahr As String
+	Dim strYear As String
 	Dim strMonth As String
 	Dim strDay As String
 	Dim strNDate As String
@@ -22,9 +22,9 @@ Function Filename(doc As NotesDocument, path As String) As String
 	
 	'Jahr
 	If Year(NDate.Dateonly) < 1000 Then
-		strJahr = "0" & CStr(Year(NDate.Dateonly))
+		strYear = "0" & CStr(Year(NDate.Dateonly))
 	Else
-		strJahr = CStr(Year(NDate.Dateonly))
+		strYear = CStr(Year(NDate.Dateonly))
 	End If
 	
 	'Monat
@@ -41,7 +41,7 @@ Function Filename(doc As NotesDocument, path As String) As String
 		strDay = CStr(Day(NDate.Dateonly))
 	End If
 	
-	strNDate = strJahr & strMonth & strDay
+	strNDate = strYear & strMonth & strDay
 	
 	strSender = getSender(doc)
 	
