@@ -1,0 +1,8 @@
+Function Doc2HTML(doc As NotesDocument, fieldname As String) As String 'may NotesStream would be better here...
+    Dim obj
+    Set obj = CreateObject("Microsoft.XMLHTTP")
+    obj.open "GET", "http://www.your.url/some/folder/db.nsf/0/" + doc.Universalid + "/" + fieldname + "?openfield&charset=utf-8", False, "", ""
+    obj.send("")
+
+    Doc2HTML = Trim$(obj.responseText)
+End Function
