@@ -1,0 +1,32 @@
+' Fixes NAME/name/nAME to Name
+' I couldn't use StrConv because of names like McDonalds...
+
+Function FixName(tmpstr As String) As String
+	Dim fc As Boolean 'first character of the name (true/false)
+	Dim lc As String * 1 'last character
+	Dim x As Integer
+	
+	fc = True
+	
+	For x = 1 To Len(tmpstr)
+		If Mid$(tmpstr,x,1) Like "[A-Za-z]" Then
+			If fc Then
+				FixName = FixName + UCase(Mid$(tmpstr,x,1))
+				lc = UCase(Mid$(tmpstr,x,1))
+				fc = False
+			Else
+				If lc = UCase(lc) Or Mid$(tmpstr,x + 1,1) = UCase(Mid$(tmpstr,x + 1,1)) Then
+					FixName = FixName + LCase(Mid$(tmpstr,x,1))
+					lc = LCase(Mid$(tmpstr,x,1))
+				Else
+					FixName = FixName + Mid$(tmpstr,x,1)
+					lc = Mid$(tmpstr,x,1)
+				End If
+			End If
+		Else
+			FixName = FixName + Mid$(tmpstr,x,1)
+			lc = Mid$(tmpstr,x,1)
+			fc = True
+		End If
+	Next x
+End Function
