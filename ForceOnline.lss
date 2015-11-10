@@ -1,0 +1,17 @@
+%REM
+	Agent ForceOnline
+	Description: 'fixes' Domino error "database is being taken offline and cannot be opened"
+%END REM
+
+Option Public
+Option Declare
+
+Declare Private Function NSFBringDatabaseOnline Lib "nnotes.dll" Alias "NSFBringDatabaseOnline" (ByVal dbPath As String, ByVal Z As Long) As Integer
+
+Sub Initialize
+	Dim tmpstr As String
+	
+	tmpstr = "path/to/database.nsf"
+	
+	Call NSFBringDatabaseOnline(tmpstr, 0)
+End Sub
